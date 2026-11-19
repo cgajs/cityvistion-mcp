@@ -1,0 +1,22 @@
+{
+  "name": "cityvistion",
+  "version": "0.1.2",
+  "description": "CityEngine / CGA.js / NL2CGA: NL→CGA rules, CGA→3D(GLB) compile, official-engine parse, demo library. Hosted MCP, zero install.",
+  "mcpServers": {
+    "cityvistion": {
+      "httpUrl": "https://mcp.cgajs.com/mcp",
+      "headers": {
+        "Authorization": "Bearer $CITYVISTION_API_KEY"
+      }
+    }
+  },
+  "settings": [
+    {
+      "name": "CityVistion API Key",
+      "description": "Unified API key for CityEngine / CGA.js / NL2CGA (get one at https://www.cgajs.com/dashboard.html)",
+      "envVar": "CITYVISTION_API_KEY",
+      "sensitive": true
+    }
+  ],
+  "contextFileName": "GEMINI.md"
+}

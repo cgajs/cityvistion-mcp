@@ -1,0 +1,34 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cityvistion-mcp"
+version = "0.1.2"
+description = "Unified MCP server for CityEngine / CGA.js / NL2CGA — generate CGA rules from natural language, compile CGA to 3D models (GLB), official engine parsing and demo library."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "CityVistion", email = "support@cgajs.com" }]
+keywords = ["mcp", "cga", "cityengine", "cgajs", "nl2cga", "procedural", "3d", "llm-tools"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+]
+dependencies = [
+    "fastmcp>=2.10",
+    "httpx>=0.27",
+]
+
+[project.urls]
+Homepage = "https://www.cgajs.com"
+Documentation = "https://www.cgajs.com/ai-access.html"
+Issues = "https://github.com/cgajs/cityvistion-mcp/issues"
+
+[project.scripts]
+cityvistion-mcp = "cityvistion_mcp.server:main"
+
+[tool.setuptools.packages.find]
+include = ["cityvistion_mcp*"]

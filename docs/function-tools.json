@@ -1,0 +1,159 @@
+{
+  "_comment": "OpenAI 兼容 function-calling 工具定义，可直接用于 DeepSeek / Qwen(百炼) / GLM(智谱) / MiniMax / Grok(xAI) / Kimi(Moonshot) 的 tools 参数。后端代理只需把 function name 映射到对应 REST 端点（见 x_endpoint），认证头按 x_auth 注入。",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "nl2cga_generate_cga",
+        "description": "用一句自然语言生成 CGA 规则源码（NL2CGA 服务）。返回 job_id，轮询 nl2cga_get_job 直到 status=succeeded 取 cga 字段。",
+        "x_endpoint": "POST https://www.nl2cga.com/api/v1/cga/generate",
+        "x_auth": "Authorization: Bearer <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["prompt"],
+          "properties": {
+            "prompt": {"type": "string", "description": "自然语言建模描述，如「三层临街商铺，骑楼退界」", "maxLength": 2000}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "nl2cga_get_job",
+        "description": "查询 NL2CGA 生成任务状态（queued/running/succeeded/failed）与 CGA 结果。",
+        "x_endpoint": "GET https://www.nl2cga.com/api/v1/cga/jobs/{job_id}",
+        "x_auth": "Authorization: Bearer <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["job_id"],
+          "properties": {
+            "job_id": {"type": "string", "description": "nl2cga_generate_cga 返回的任务 ID"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cgajs_compile_cga",
+        "description": "把 CGA 规则源码编译为三维模型 GLB（CGA.js 云端引擎）。返回 base64 GLB（model 字段）、顶点/面片统计。CGA 需含 @StartRule 与 Lot 规则。",
+        "x_endpoint": "POST https://www.cgajs.com/api/v1/compile",
+        "x_auth": "x-api-key: <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["cga_source"],
+          "properties": {
+            "cga_source": {"type": "string", "description": "CGA 规则源码全文", "maxLength": 20000},
+            "engine": {"type": "string", "enum": ["js", "python"], "description": "js=默认(×1配额)；python=服务器原生引擎(×3配额，CityEngine 方言兼容更好)"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cgajs_get_quota",
+        "description": "查询 CGA.js 当前 key 的套餐档位与本月额度用量。",
+        "x_endpoint": "GET https://www.cgajs.com/api/v1/quota",
+        "x_auth": "x-api-key: <CITYVISTION_API_KEY>",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_generate_cga",
+        "description": "自然语言 → CGA 规则源码（CityEngine 网关，同步返回，不渲染）。text 与 (base_cga+instruction) 二选一。",
+        "x_endpoint": "POST https://api.cityengine.cn/v1/nl2cga",
+        "x_auth": "X-API-Key: <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "text": {"type": "string", "description": "自然语言描述", "maxLength": 2000},
+            "base_cga": {"type": "string", "description": "既有 CGA（修改模式）"},
+            "instruction": {"type": "string", "description": "修改指令（修改模式）"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_parse_cga",
+        "description": "用 CityEngine 官方引擎解析 CGA 生成三维模型（异步）。返回 job_id，轮询 cityengine_get_job 取 result.gltf.url（签名地址，24h 有效）。",
+        "x_endpoint": "POST https://api.cityengine.cn/v1/generate",
+        "x_auth": "X-API-Key: <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["cga_source"],
+          "properties": {
+            "cga_source": {"type": "string", "maxLength": 20000},
+            "attributes": {"type": "object", "description": "attr 覆盖，如 {\"height\": 30}"},
+            "seed": {"type": "integer", "description": "随机种子（固定可复现）"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_generate_model",
+        "description": "自然语言一句话 → 直接生成三维模型（NL2CGA + CityEngine 引擎一键串联，异步）。返回 job_id 与 cga_source，轮询 cityengine_get_job 取 GLB。",
+        "x_endpoint": "POST https://api.cityengine.cn/v1/nl2model",
+        "x_auth": "X-API-Key: <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["text"],
+          "properties": {
+            "text": {"type": "string", "description": "如「生成一栋 12 层现代玻璃幕墙办公楼」", "maxLength": 2000},
+            "attributes": {"type": "object"},
+            "seed": {"type": "integer"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_get_job",
+        "description": "查询 CityEngine 异步任务（generate / nl2model）状态与产物。",
+        "x_endpoint": "GET https://api.cityengine.cn/v1/jobs/{job_id}",
+        "x_auth": "X-API-Key: <CITYVISTION_API_KEY>",
+        "parameters": {
+          "type": "object",
+          "required": ["job_id"],
+          "properties": {
+            "job_id": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_inspect_cga",
+        "description": "解析 CGA 源码的可调属性（名称/类型/默认值/范围/枚举），免 API key。渲染前自检参数面板用。",
+        "x_endpoint": "POST https://www.cityengine.cn/api/v1/cv/inspect",
+        "x_auth": "none",
+        "parameters": {
+          "type": "object",
+          "required": ["cga_source"],
+          "properties": {
+            "cga_source": {"type": "string"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "cityengine_list_demos",
+        "description": "列出 CityEngine 官方案例库（id、名称、引擎、参数个数），免 API key。预览地址 https://www.cityengine.cn/simple.html?demo={id}",
+        "x_endpoint": "GET https://www.cityengine.cn/home-demos.json",
+        "x_auth": "none",
+        "parameters": {"type": "object", "properties": {}}
+      }
+    }
+  ]
+}

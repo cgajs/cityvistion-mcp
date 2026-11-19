@@ -1,0 +1,330 @@
+openapi: 3.0.3
+info:
+  title: CityVistion API（CityEngine / CGA.js / NL2CGA）
+  version: 0.1.0
+  description: >-
+    三项目统一 REST 契约，供大模型 function-calling / GPT Actions / 智能体平台直接接入。
+    认证：nl2cga 用 `Authorization: Bearer <key>`；cgajs 用 `x-api-key: <key>`；
+    cityengine 网关用 `X-API-Key: <key>`。统一 key（CITYVISTION_API_KEY）在三个服务间互通。
+    免 key 接口：cityengine.cn 的 inspect / 案例库。
+servers:
+  - url: https://www.nl2cga.com/api/v1
+    description: NL2CGA（自然语言→CGA 规则）
+  - url: https://www.cgajs.com/api/v1
+    description: CGA.js（CGA→GLB 编译）
+  - url: https://api.cityengine.cn
+    description: CityEngine 网关（官方引擎解析 / NL2CGA / NL2Model）
+  - url: https://www.cityengine.cn
+    description: CityEngine 站点（免 key：inspect、案例库）
+tags:
+  - name: nl2cga
+  - name: cgajs
+  - name: cityengine
+  - name: free
+paths:
+  /cga/generate:
+    post:
+      tags: [nl2cga]
+      servers: [{url: https://www.nl2cga.com/api/v1}]
+      summary: 自然语言生成 CGA 规则（异步任务）
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [prompt]
+              properties:
+                prompt: {type: string, maxLength: 2000, example: 三层临街商铺，骑楼退界}
+      responses:
+        '200':
+          description: 任务已受理或已完成
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+                  status: {type: string, enum: [queued, running, succeeded, failed, cancelled]}
+                  outcome: {type: string, example: SUCCESS}
+                  cga: {type: string, description: 完成时返回的 CGA 规则全文}
+                  error: {type: string}
+                  usage: {type: object}
+  /cga/jobs/{job_id}:
+    get:
+      tags: [nl2cga]
+      servers: [{url: https://www.nl2cga.com/api/v1}]
+      summary: 查询 NL2CGA 生成任务
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: job_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: 任务状态与结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: {type: string}
+                  cga: {type: string}
+                  error: {type: string}
+                  usage: {type: object}
+  /compile:
+    post:
+      tags: [cgajs]
+      servers: [{url: https://www.cgajs.com/api/v1}]
+      summary: 编译 CGA 为 GLB 三维模型
+      security: [{apiKeyHeader: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source: {type: string, maxLength: 20000, description: CGA 源码（需含 @StartRule 与 Lot 规则）}
+                engine: {type: string, enum: ['', js, python], description: 空=js(×1配额)；python=服务器原生引擎(×3配额，CityEngine 方言兼容更好)}
+                initialShape:
+                  type: object
+                  properties:
+                    geometry:
+                      type: object
+                      properties:
+                        type: {type: string, example: box}
+                        width: {type: number, example: 12}
+                        height: {type: number, example: 0}
+                        depth: {type: number, example: 8}
+      responses:
+        '200':
+          description: 编译结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  engine: {type: string}
+                  model: {type: string, description: base64 编码的 GLB（glTF-Binary）}
+                  metadata:
+                    type: object
+                    properties:
+                      vertexCount: {type: integer}
+                      polygonCount: {type: integer}
+                      generationTimeMs: {type: number}
+                      engine: {type: string}
+                  warnings: {type: array, items: {type: string}}
+                  errors: {type: array, items: {type: object}}
+  /quota:
+    get:
+      tags: [cgajs]
+      servers: [{url: https://www.cgajs.com/api/v1}]
+      summary: 查询 CGA.js 套餐与本月额度用量
+      security: [{apiKeyHeader: []}]
+      responses:
+        '200': {description: 套餐档位与用量}
+  /v1/nl2cga:
+    post:
+      tags: [cityengine]
+      servers: [{url: https://api.cityengine.cn}]
+      summary: 自然语言 → CGA 规则源码（同步，不渲染）
+      security: [{ceApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              oneOf:
+                - type: object
+                  required: [text]
+                  properties:
+                    text: {type: string, maxLength: 2000}
+                - type: object
+                  required: [cga_edit]
+                  properties:
+                    cga_edit:
+                      type: object
+                      required: [base_cga, instruction]
+                      properties:
+                        base_cga: {type: string}
+                        instruction: {type: string}
+      responses:
+        '200':
+          description: 生成结果
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  request_id: {type: string}
+                  cga_source: {type: string}
+                  engine_path: {type: string}
+                  warnings: {type: array, items: {type: string}}
+                  usage: {type: object}
+  /v1/generate:
+    post:
+      tags: [cityengine]
+      servers: [{url: https://api.cityengine.cn}]
+      summary: 官方引擎解析 CGA 生成模型（异步任务，202 受理）
+      security: [{ceApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [cga_source]
+              properties:
+                cga_source: {type: string, maxLength: 20000}
+                attributes: {type: object, description: 'attr 覆盖，如 {"height": 30}'}
+                initial_shape:
+                  type: object
+                  properties:
+                    type: {type: string, example: Polygon}
+                    pts: {type: array, items: {type: array, items: {type: number}}, description: '[[x,z],...] 米制'}
+                seed: {type: integer}
+      responses:
+        '202':
+          description: 任务已受理
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+  /v1/nl2model:
+    post:
+      tags: [cityengine]
+      servers: [{url: https://api.cityengine.cn}]
+      summary: 自然语言一句话 → 三维模型（NL2CGA+引擎一键串联，异步）
+      security: [{ceApiKey: []}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text]
+              properties:
+                text: {type: string, maxLength: 2000}
+                cga_edit:
+                  type: object
+                  properties:
+                    base_cga: {type: string}
+                    instruction: {type: string}
+                attributes: {type: object}
+                initial_shape: {type: object}
+                seed: {type: integer}
+      responses:
+        '202':
+          description: 任务已受理
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+  /v1/jobs/{job_id}:
+    get:
+      tags: [cityengine]
+      servers: [{url: https://api.cityengine.cn}]
+      summary: 查询 CityEngine 任务状态与产物
+      security: [{ceApiKey: []}]
+      parameters:
+        - {name: job_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200':
+          description: 任务状态；succeeded 时含 result.gltf（签名下载地址，24h 有效）
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  job_id: {type: string}
+                  status: {type: string, enum: [queued, running, succeeded, failed]}
+                  result:
+                    type: object
+                    properties:
+                      cga_source: {type: string}
+                      gltf:
+                        type: object
+                        properties:
+                          url: {type: string}
+                          expires_at: {type: string}
+                          sha256: {type: string}
+                          size_bytes: {type: integer}
+                          stats:
+                            type: object
+                            properties:
+                              vertices: {type: integer}
+                              triangles: {type: integer}
+                      warnings: {type: array, items: {type: string}}
+                  error: {type: string}
+  /v1/account/quota:
+    get:
+      tags: [cityengine]
+      servers: [{url: https://api.cityengine.cn}]
+      summary: 查询 CityEngine 套餐、额度用量与限流参数
+      security: [{ceApiKey: []}]
+      responses:
+        '200': {description: 套餐与用量}
+  /api/v1/cv/inspect:
+    post:
+      tags: [free]
+      servers: [{url: https://www.cityengine.cn}]
+      summary: 解析 CGA 可调属性（名称/类型/默认值/范围/枚举），免 key
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [source]
+              properties:
+                source: {type: string}
+      responses:
+        '200':
+          description: 属性 schema
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: {type: boolean}
+                  attrs: {type: array, items: {type: object}}
+  /home-demos.json:
+    get:
+      tags: [free]
+      servers: [{url: https://www.cityengine.cn}]
+      summary: 官方案例库清单（id/名称/引擎/参数），免 key
+      responses:
+        '200':
+          description: 案例数组；预览地址 simple.html?demo={id}
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id: {type: string}
+                    name: {type: string}
+                    engine: {type: string}
+                    sourceDate: {type: string}
+                    attrs: {type: array, items: {type: object}}
+  /home-scenes/{demo_id}.json:
+    get:
+      tags: [free]
+      servers: [{url: https://www.cityengine.cn}]
+      summary: 单个案例的场景快照，免 key
+      parameters:
+        - {name: demo_id, in: path, required: true, schema: {type: string}}
+      responses:
+        '200': {description: 场景快照（nodes/materials/warnings/timing）}
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer}
+    apiKeyHeader: {type: apiKey, in: header, name: x-api-key}
+    ceApiKey: {type: apiKey, in: header, name: X-API-Key}

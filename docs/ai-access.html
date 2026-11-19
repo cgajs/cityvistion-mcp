@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI 助手接入 · CityVistion（CityEngine / CGA.js / NL2CGA）</title>
+<meta name="description" content="通过 MCP 或 function-calling，让 Claude Code、codex、Gemini、Kimi、DeepSeek、Qwen、GLM、Grok 等 AI 助手直接生成 CGA 规则与三维模型。">
+<style>
+:root{--bg:#0f1216;--card:#171c22;--line:#262d36;--fg:#e6eaef;--mut:#9aa5b1;--acc:#4da3ff;--acc2:#39d98a;--code:#0a0d11}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.7 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif}
+.wrap{max-width:960px;margin:0 auto;padding:32px 20px 80px}
+h1{font-size:28px;margin:8px 0 4px}h2{font-size:20px;margin:36px 0 12px;padding-top:12px;border-top:1px solid var(--line)}h3{font-size:16px;margin:24px 0 8px}
+a{color:var(--acc);text-decoration:none}a:hover{text-decoration:underline}
+.sub{color:var(--mut);margin-bottom:8px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px 18px;margin:14px 0}
+table{border-collapse:collapse;width:100%;margin:12px 0;font-size:14px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:#1d232b}code{background:var(--code);border:1px solid var(--line);border-radius:5px;padding:1px 6px;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#ffd479}
+pre{background:var(--code);border:1px solid var(--line);border-radius:10px;padding:14px 16px;overflow-x:auto;font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;color:#c9d4e0}
+pre code{background:none;border:none;padding:0;color:inherit}
+.pill{display:inline-block;background:#1d232b;border:1px solid var(--line);border-radius:999px;padding:2px 12px;margin:2px 4px 2px 0;font-size:12.5px;color:var(--mut)}
+.pill b{color:var(--acc2);font-weight:600}
+.tag{color:var(--acc2);font-weight:600}
+.note{color:var(--mut);font-size:13.5px}
+ul{padding-left:20px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>AI 助手接入</h1>
+<p class="sub">让 Claude Code、codex、Gemini CLI、Kimi、Qwen、DeepSeek、GLM、MiniMax、Grok 等 AI 助手直接调用 CityEngine / CGA.js / NL2CGA：自然语言生成 CGA 规则 → 编译三维模型（GLB）→ 官方引擎对齐验证。</p>
+
+<div class="card">
+<b>三种接入方式</b>
+<table>
+<tr><th>方式</th><th>适用助手</th><th>说明</th></tr>
+<tr><td><b>A. MCP stdio</b>（推荐）</td><td>Claude Code · codex · Gemini CLI · Kimi Code · Qwen Code · Cursor · Cline · Cherry Studio</td><td><code>pip install cityvistion-mcp</code>，11 个工具即装即用</td></tr>
+<tr><td><b>B. MCP 托管端点</b></td><td>支持远程 MCP（HTTP）的客户端</td><td><code>https://mcp.cgajs.com/mcp</code>，免安装，key 走请求头</td></tr>
+<tr><td><b>C. Function-calling / REST</b></td><td>DeepSeek · GLM · MiniMax · Grok · Kimi(Moonshot API) · 自研智能体</td><td>按 <a href="#rest">OpenAPI / function-tools</a> 直接调 REST</td></tr>
+</table>
+<p class="note">统一 API key：一个 key 三项目通用。NL2CGA 用 <code>Authorization: Bearer</code>，CGA.js 用 <code>x-api-key</code>，CityEngine 用 <code>X-API-Key</code>；MCP 方式只需配置 <code>CITYVISTION_API_KEY</code> 环境变量，工具内部自动分流。Key 在各站用户中心领取。</p>
+</div>
+
+<h2>11 个工具</h2>
+<p>
+<span class="pill"><b>nl2cga</b> generate_cga / get_job</span>
+<span class="pill"><b>cgajs</b> compile_cga / get_quota</span>
+<span class="pill"><b>cityengine</b> parse_cga / generate_cga / generate_model / get_job / get_quota</span>
+<span class="pill"><b>免key</b> inspect_cga / list_demos / get_demo</span>
+</p>
+
+<h2 id="stdio">A. MCP stdio 配置</h2>
+<p>先安装：<code>pip install cityvistion-mcp</code>（PyPI 已上架，Python ≥ 3.10），然后按你的客户端选一段配置，把 <code>你的key</code> 替换为统一 API key。</p>
+
+<h3>Claude Code（GLM Coding 同）</h3>
+<p class="note">项目根目录 <code>.mcp.json</code>：</p>
+<pre>{
+  "mcpServers": {
+    "cityvistion": {
+      "command": "python3",
+      "args": ["-m", "cityvistion_mcp.server"],
+      "env": { "CITYVISTION_API_KEY": "你的key" }
+    }
+  }
+}</pre>
+
+<h3>codex（OpenAI）</h3>
+<p class="note"><code>~/.codex/config.toml</code>：</p>
+<pre>[mcp_servers.cityvistion]
+command = "python3"
+args = ["-m", "cityvistion_mcp.server"]
+env = { CITYVISTION_API_KEY = "你的key" }</pre>
+
+<h3>Gemini CLI · Qwen Code</h3>
+<p class="note"><code>~/.gemini/settings.json</code>（Qwen Code 为 <code>~/.qwen/settings.json</code>，同 schema）：</p>
+<pre>{
+  "mcpServers": {
+    "cityvistion": {
+      "command": "python3",
+      "args": ["-m", "cityvistion_mcp.server"],
+      "env": { "CITYVISTION_API_KEY": "你的key" }
+    }
+  }
+}</pre>
+
+<h3>Kimi Code</h3>
+<p class="note"><code>~/.kimi-code/mcp.json</code>（用户级）或项目级 <code>.kimi-code/mcp.json</code>：</p>
+<pre>{
+  "mcpServers": {
+    "cityvistion": {
+      "command": "python3",
+      "args": ["-m", "cityvistion_mcp.server"],
+      "env": { "CITYVISTION_API_KEY": "你的key" }
+    }
+  }
+}</pre>
+
+<h3>Cursor · Cline</h3>
+<p class="note">Cursor：<code>~/.cursor/mcp.json</code>；Cline：<code>cline_mcp_settings.json</code>。内容同上 mcpServers JSON。</p>
+
+<h3>Cherry Studio</h3>
+<p class="note">设置 → MCP 服务器 → 添加：类型 stdio，命令 <code>python3</code>，参数 <code>-m cityvistion_mcp.server</code>，环境变量 <code>CITYVISTION_API_KEY=你的key</code>。</p>
+
+<h2 id="hosted">B. MCP 托管端点（免安装）</h2>
+<p>端点 <code>https://mcp.cgajs.com/mcp</code>（streamable-http）。key 通过请求头传入：<code>Authorization: Bearer &lt;统一key&gt;</code>，或分服务头 <code>x-cgajs-key</code> / <code>x-nl2cga-key</code> / <code>x-cityengine-key</code>。</p>
+<pre>{
+  "mcpServers": {
+    "cityvistion": {
+      "url": "https://mcp.cgajs.com/mcp",
+      "headers": { "Authorization": "Bearer 你的key" }
+    }
+  }
+}</pre>
+
+<h2 id="rest">C. Function-calling / REST</h2>
+<ul>
+<li>OpenAPI 3.0 契约：<a href="https://www.cgajs.com/docs/openapi.yaml">openapi.yaml</a>（可直接导入 GPT Actions / 智能体平台）</li>
+<li>Function 定义：<a href="https://www.cgajs.com/docs/function-tools.json">function-tools.json</a>（OpenAI 兼容 <code>tools</code> 数组，DeepSeek / GLM / MiniMax / Grok / Moonshot 直接可用）</li>
+</ul>
+<p>调用流程：把 <code>tools</code> 数组传给模型 → 模型返回 <code>tool_calls</code> → 按每项 <code>x_endpoint</code> 发 HTTP 请求并注入 <code>x_auth</code> 认证头 → 响应 JSON 以 <code>role=tool</code> 回传模型。</p>
+
+<h3>核心 REST 端点速查</h3>
+<table>
+<tr><th>能力</th><th>端点</th><th>认证</th></tr>
+<tr><td>自然语言→CGA</td><td><code>POST www.nl2cga.com/api/v1/cga/generate</code>（轮询 <code>GET /api/v1/cga/jobs/{id}</code>）</td><td>Bearer</td></tr>
+<tr><td>CGA→GLB 编译</td><td><code>POST www.cgajs.com/api/v1/compile</code></td><td>x-api-key</td></tr>
+<tr><td>官方引擎解析 CGA→模型</td><td><code>POST api.cityengine.cn/v1/generate</code>（轮询 <code>GET /v1/jobs/{id}</code>）</td><td>X-API-Key</td></tr>
+<tr><td>一句话→模型（串联）</td><td><code>POST api.cityengine.cn/v1/nl2model</code></td><td>X-API-Key</td></tr>
+<tr><td>自然语言→CGA（同步）</td><td><code>POST api.cityengine.cn/v1/nl2cga</code></td><td>X-API-Key</td></tr>
+<tr><td>解析 CGA 可调属性</td><td><code>POST www.cityengine.cn/api/v1/cv/inspect</code></td><td class="tag">免 key</td></tr>
+<tr><td>官方案例库</td><td><code>GET www.cityengine.cn/home-demos.json</code></td><td class="tag">免 key</td></tr>
+</table>
+
+<h2>典型链式用法</h2>
+<div class="card">
+<p>直接告诉你的 AI 助手：</p>
+<p><i>「用 nl2cga_generate_cga 把『三层临街商铺，骑楼退界』生成 CGA，再用 cgajs_compile_cga 编译成模型，最后用 cityengine_parse_cga 出官方引擎对照版本。」</i></p>
+<p class="note">三服务天然串联：NL2CGA 出规则 → CGA.js 快速编译（×1 配额）→ CityEngine 官方引擎对齐验证。实测：Kimi Code CLI 全链调用 11 工具、18 官方案例、编译出 GLB 一次通过（2026-11-20）。</p>
+</div>
+
+</div>
+</body>
+</html>
